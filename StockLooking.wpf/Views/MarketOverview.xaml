@@ -1,0 +1,446 @@
+<UserControl x:Class="StockLooking.wpf.Views.MarketOverview"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:StockLooking.wpf.Views"
+             FontFamily="Microsoft YaHei, SimSun, sans-serif" FontSize="13"
+             Foreground="{DynamicResource TextPrimaryBrush}">
+    <UserControl.Resources>
+        <!-- Apple 风通用按钮（与 KlineChart / MultiKlineChart 一致；本控件自成一份，避免依赖宿主资源） -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource PressedBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BorderLightBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 卡片外壳（各部分统一用它，保证视觉一致） -->
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <!--
+            明细表的滚动容器：**纵向滚动条改为叠加在内容之上**（不再挤占宽度）。
+            ★ 为什么必须这样做：表头 Grid 在 ScrollViewer 之外，若滚动条占宽，数据行就比表头窄
+              一个滚动条的宽度 → 6 个星号列每列差「占宽/6」px 并**逐列累加**，最后一列（封单量）
+              能差 15px 以上，表现为"表头与数据不对齐"。
+              而滚动条的**实际占宽无法用公式算准**（样式是 Width=10 + Margin(4,2,2,2)，看似 16，
+              实测 16~23 不等），所以不去"补宽度"，而是让滚动条根本不占宽度 ——
+              表头与数据行的可用宽度**天然相等**，任何时刻都严格对齐，且无需任何运行时测量/事件。
+            横向滚动条不放进模板（本表恒为 Disabled）。
+
+            ⚠️ 与右对齐配合：内容右对齐后会一直顶到列右边缘，所以**滚动条必须让开内容**。
+               这里的做法是：滚动条固定占「Width 6 + Margin 2 = 8px」，而表头与数据行统一留
+               **12px 右内边距**（见下面两处 Margin 的最后一个"12"），内容就永远压不到滚动条上。
+               ⇒ 改滚动条宽度时，必须同步改这两处右内边距，保持「占位 < 内边距」。
+               ⚠️⚠️ 必须写 `MinWidth="0"`：主题默认的 ScrollBar 样式带 `MinWidth=17`，
+                    会把 Width=6 顶回 17（实测：设 6 实际仍渲染 17，滑块居中的位置正好压住文字）。
+        -->
+        <Style x:Key="TableScrollStyle" TargetType="ScrollViewer">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid Background="Transparent">
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"
+                                                    Content="{TemplateBinding Content}"
+                                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Orientation="Vertical"
+                                       HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                                       Width="6" MinWidth="0" Margin="0,2,2,2"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                                       Cursor="Arrow" IsTabStop="False"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 小节标题 -->
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="2,0,0,8"/>
+        </Style>
+
+        <!-- 涨停/跌停明细表：列宽**等分**（序号固定 34，其余 6 列同为 *）。
+             ★ **表头与内容统一右对齐**：两者共用同一套样式（LimitHead 派生自 LimitCell），
+               右内边距也一致，所以每一列的表头与该列内容**右边缘严格对齐**；
+               数值右对齐还顺带让小数位对齐，便于纵向比大小。
+             ★ 这里用「Stretch + TextAlignment=Right」而不是「HorizontalAlignment=Right」：
+               后者会让控件按内容宽度收缩，过长文本会溢出到相邻列；前者始终占满本列，
+               超出时由 TextTrimming 收尾（完整内容在 ToolTip 里）。 -->
+        <Style x:Key="LimitCell" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style x:Key="LimitHead" TargetType="TextBlock" BasedOn="{StaticResource LimitCell}">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 工具栏：刷新 + 自动刷新 + 频率 + 各数据块的数据时间 -->
+        <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,2,0,8">
+            <Button x:Name="RefreshBtn" Content="刷新" Width="70" Margin="0,0,14,0" Click="Refresh_Click"
+                    ToolTip="立即重新获取全部数据（绕过缓存）"/>
+            <CheckBox x:Name="AutoChk" Content="自动刷新" Margin="0,0,14,0" VerticalAlignment="Center"
+                      Checked="AutoChk_Changed" Unchecked="AutoChk_Changed"
+                      ToolTip="仅在本页停留时生效；离开本页自动停止，避免占用资源"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                <TextBlock Text="频率(ms)：" VerticalAlignment="Center"/>
+                <Slider x:Name="RefreshSlider" Minimum="1000" Maximum="30000" TickFrequency="1000" IsSnapToTickEnabled="True" Width="180"
+                        ValueChanged="RefreshSlider_ValueChanged"
+                        ToolTip="指数卡片与两市成交额跟随本设置（每次移动步进 1000ms）。&#10;涨跌分布 / 涨停跌停明细要抓全市场（约 20 个请求），刷新不低于 3 秒，避免触发对端限流。"/>
+                <TextBlock x:Name="RefreshText" VerticalAlignment="Center" Margin="10,0,0,0" Width="64"/>
+            </StackPanel>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12"
+                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+        </WrapPanel>
+
+        <!--
+            内容区：**高度自适应，整页填满窗口**（不再套 ScrollViewer）。
+            用 ScrollViewer 时内容按自然高度堆叠，下方会留下一大片空白（用户反馈"留白太多"）；
+            改成 Grid 的 Auto/Auto/* 三段后，最后一段的高都由"涨跌分布卡"里的图表用掉，
+            窗口越高图越大，任何高度下版面都是满的。
+        -->
+        <Grid Grid.Row="1" Margin="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <!-- 第二行（分布 + 成交额）：高度要能完整容纳两个圆环 + 标题 + 时间行，
+                     否则会冒滚动条。压得比第三行略高，让柱形图与圆环都舒展。 -->
+                <RowDefinition Height="1.15*" MinHeight="248"/>
+                <!-- 第三行（涨停 / 跌停明细列表）：内部自带纵向滚动 -->
+                <RowDefinition Height="1*" MinHeight="205"/>
+            </Grid.RowDefinitions>
+
+            <!-- ========== 第一部分：各大盘 K 线卡片 ========== -->
+            <TextBlock Grid.Row="0" Text="大盘指数" Style="{StaticResource SectionTitle}"/>
+            <!--
+                卡片由代码按 MarketIndex.All 动态生成（数量/顺序改一处即可，无需同步 XAML）。
+                ★ 用 UniformGrid 而不是 WrapPanel：WrapPanel 在窗口不够宽时会把最后一张挤到第二行
+                （5×252 需要 1320px，常见宽度下就变成 4+1）。UniformGrid 把可用宽度**等分**给 N 列，
+                任何窗口宽度都保持一行，卡片宽度自适应。
+            -->
+            <UniformGrid Grid.Row="1" x:Name="IndexCardsPanel" Columns="5" Margin="0,0,0,4"/>
+
+            <!--
+                ========== 第二/三部分：左「今日涨跌分布」+ 右「两市成交额」 ==========
+                两者是同一份"市场总貌"，并排放在一起才好一眼对照。
+                ★ 两卡**等高**：每列用 Grid(Auto 标题 / * 卡片) 而不是 StackPanel ——
+                StackPanel 只按内容撑高（成交额会比分布矮一大截、下方留一片空白）。
+            -->
+            <Grid Grid.Row="2" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="1*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ===== 左：今日涨跌分布（主内容）===== -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="今日涨跌分布" Style="{StaticResource SectionTitle}"/>
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <!-- 图表吃掉卡片剩余高度（窗口越高图越大，不会留白） -->
+                                <RowDefinition Height="*"/>
+                                <!-- 统计行：上涨/平盘/下跌 + 涨停/跌停**全部在同一行**（WrapPanel 放不下时自动折行） -->
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 左涨右跌（中间为平盘）；柱体上标家数。
+                                 绘图区**不铺深色底**，直接融入卡片底色；图内文字/网格线走主题资源色，明暗主题都清晰。 -->
+                            <Canvas x:Name="DistCanvas" Grid.Row="0" Background="Transparent"
+                                    SizeChanged="DistCanvas_SizeChanged"/>
+
+                            <!-- 统计行（**一行到底**）：上涨 / 平盘 / 下跌 / 涨停 / 跌停 + 合计 + 数据时间。
+                                 间距压到 20，保证常见窗口宽度下 5 组指标 + 合计 + 时间都排得下。 -->
+                            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="2,14,0,0">
+                                <TextBlock Text="上涨" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="StatUp" Text="—" FontSize="15" FontWeight="Bold" Margin="0,0,20,0"/>
+                                <TextBlock Text="平盘" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="StatFlat" Text="—" FontSize="15" FontWeight="Bold" Margin="0,0,20,0"/>
+                                <TextBlock Text="下跌" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="StatDown" Text="—" FontSize="15" FontWeight="Bold" Margin="0,0,20,0"/>
+                                <TextBlock Text="涨停" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="StatLimitUp" Text="—" FontSize="15" FontWeight="Bold" Margin="0,0,20,0"/>
+                                <TextBlock Text="跌停" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="StatLimitDown" Text="—" FontSize="15" FontWeight="Bold" Margin="0,0,20,0"/>
+                                <TextBlock x:Name="StatTotal" Text="" FontSize="12" VerticalAlignment="Bottom" Margin="0,0,16,0"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                <TextBlock x:Name="DistUpdatedAt" Text="" FontSize="12" VerticalAlignment="Bottom"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"/>
+                            </WrapPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ===== 右：两市成交额（总成交额圆环 + 「较上一日」圆环，两者**水平并排**）===== -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="两市成交额" Style="{StaticResource SectionTitle}"/>
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}">
+                        <!--
+                            版式：两个圆环**水平居中并排** → 数据更新时间。
+                            可视化由代码生成（圆环要画弧），故这里只留宿主容器。
+                        -->
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 两个圆环**水平居中**。
+                                 ⚠️ **不套 ScrollViewer**：滚动条会破坏卡片观感（老板明确要求"不要有滚动条"）。
+                                    高度已按内容（环 112 + 环下标题 + 时间行 + 内边距 ≈ 165）在行定义处留足，
+                                    小窗口下宁可裁掉也不出滚动条。 -->
+                            <StackPanel Grid.Row="0" x:Name="RingPanel" Orientation="Horizontal"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                            <TextBlock x:Name="TurnoverUpdatedAt" Grid.Row="1" Text="" FontSize="11.5"
+                                       Margin="0,12,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!--
+                ========== 第四部分：涨停 / 跌停 明细 ==========
+                与「今日涨跌分布」**同一份快照、同一刷新节拍**：明细就在分布抓取的那一次全市场数据里
+                直接判定，不额外请求行情；只有「封单量」需要五档，由服务层用腾讯快照补一次。
+                列宽固定（像素），保证表头与数据行严格对齐。
+            -->
+            <Grid Grid.Row="3" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ===== 左：涨停 ===== -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="涨停" Style="{StaticResource SectionTitle}"/>
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 表头 -->
+                            <!--
+                                列宽：序号固定 34，其余 6 列**等间距**（同为 *）；**表头与内容统一右对齐**（见 LimitCell 说明）。
+                                ★ 表头与下方数据行唯一要保证的就是"可用宽度相等"：
+                                  下方 ScrollViewer 用 TableScrollStyle（滚动条**叠加**、不占宽），
+                                  所以表头与数据行的宽度天然一致，**无需任何补偿**。
+                                  左侧外边距两边同为 2；**右侧同为 12**（不是 2）——
+                                  因为内容右对齐后会顶到列的右边缘，这 12px 是给叠加的滚动条（占 8px）让位。
+                                  改右侧数值时**两处必须同时改**，否则又会出现逐列错位。
+                            -->
+                            <Grid x:Name="LimitUpHeader" Grid.Row="0" Margin="2,0,12,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="序号" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="1" Text="股票名称" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="2" Text="板块" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="3" Text="当前股价" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="4" Text="涨跌额" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="5" Text="涨跌幅" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="6" Text="封单量(手)" Style="{StaticResource LimitHead}"/>
+                            </Grid>
+
+                            <ScrollViewer x:Name="LimitUpScroll" Grid.Row="1" Style="{StaticResource TableScrollStyle}"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl x:Name="LimitUpList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type views:LimitStockRow}">
+                                            <!-- 右内边距 12：为叠加的滚动条让位（与表头同一数值，保证列宽一致） -->
+                                            <Grid Margin="2,3,12,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="34"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding IndexText}" Style="{StaticResource LimitCell}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource LimitCell}"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" ToolTip="{Binding Tooltip}"/>
+                                                <!-- 板块：色底胶囊 —— 与「盯盘设置 &gt; 自选股」的板块样式一致（色底 + 圆角3 + 白字 10.5）。
+                                                     等宽：MinWidth=52（4 字板块名 + 内边距）+ 文字居中，整列对齐 -->
+                                                <Border Grid.Column="2" Background="{Binding BoardBrush}" CornerRadius="3"
+                                                        Padding="5,1" MinWidth="52" Margin="0,0,4,0" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Board}" Foreground="White" FontSize="10.5" TextAlignment="Center"/>
+                                                </Border>
+                                                <TextBlock Grid.Column="3" Text="{Binding PriceText}" Style="{StaticResource LimitCell}"
+                                                           FontWeight="SemiBold" Foreground="{Binding Brush}"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding ChangeText}" Style="{StaticResource LimitCell}" Foreground="{Binding Brush}"/>
+                                                <TextBlock Grid.Column="5" Text="{Binding PctText}" Style="{StaticResource LimitCell}"
+                                                           FontWeight="SemiBold" Foreground="{Binding Brush}"/>
+                                                <TextBlock Grid.Column="6" Text="{Binding SealText}" Style="{StaticResource LimitCell}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <TextBlock x:Name="LimitUpEmpty" Grid.Row="1" Text="暂无涨停"
+                                       VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ===== 右：跌停 ===== -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="跌停" Style="{StaticResource SectionTitle}"/>
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 列宽：序号固定 34，其余 6 列**等间距**（同为 *）；表头与内容统一右对齐（宽度对齐原理见上方涨停表头说明） -->
+                            <Grid x:Name="LimitDownHeader" Grid.Row="0" Margin="2,0,12,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="序号" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="1" Text="股票名称" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="2" Text="板块" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="3" Text="当前股价" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="4" Text="涨跌额" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="5" Text="涨跌幅" Style="{StaticResource LimitHead}"/>
+                                <TextBlock Grid.Column="6" Text="封单量(手)" Style="{StaticResource LimitHead}"/>
+                            </Grid>
+
+                            <ScrollViewer x:Name="LimitDownScroll" Grid.Row="1" Style="{StaticResource TableScrollStyle}"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl x:Name="LimitDownList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type views:LimitStockRow}">
+                                            <!-- 右内边距 12：为叠加的滚动条让位（与表头同一数值，保证列宽一致） -->
+                                            <Grid Margin="2,3,12,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="34"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding IndexText}" Style="{StaticResource LimitCell}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource LimitCell}"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" ToolTip="{Binding Tooltip}"/>
+                                                <!-- 板块：色底胶囊 —— 与「盯盘设置 &gt; 自选股」的板块样式一致（色底 + 圆角3 + 白字 10.5）。
+                                                     等宽：MinWidth=52（4 字板块名 + 内边距）+ 文字居中，整列对齐 -->
+                                                <Border Grid.Column="2" Background="{Binding BoardBrush}" CornerRadius="3"
+                                                        Padding="5,1" MinWidth="52" Margin="0,0,4,0" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Board}" Foreground="White" FontSize="10.5" TextAlignment="Center"/>
+                                                </Border>
+                                                <TextBlock Grid.Column="3" Text="{Binding PriceText}" Style="{StaticResource LimitCell}"
+                                                           FontWeight="SemiBold" Foreground="{Binding Brush}"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding ChangeText}" Style="{StaticResource LimitCell}" Foreground="{Binding Brush}"/>
+                                                <TextBlock Grid.Column="5" Text="{Binding PctText}" Style="{StaticResource LimitCell}"
+                                                           FontWeight="SemiBold" Foreground="{Binding Brush}"/>
+                                                <TextBlock Grid.Column="6" Text="{Binding SealText}" Style="{StaticResource LimitCell}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <TextBlock x:Name="LimitDownEmpty" Grid.Row="1" Text="暂无跌停"
+                                       VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

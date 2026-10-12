@@ -1,0 +1,40 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Apple 风 · 浅色主题共享 Brush 键 -->
+    <SolidColorBrush x:Key="AppBgBrush" Color="#F2F2F5"/>
+    <SolidColorBrush x:Key="CardBgBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1d1d1f"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6b6b70"/>
+    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#8a8a8f"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#D8D8DC"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="#ECECEE"/>
+    <SolidColorBrush x:Key="HoverBgBrush" Color="#ECECEE"/>
+    <!-- 分组列表选中态边框：中性灰，比背景略深，低调且可辨（替代原蓝色 SliderFillBrush） -->
+    <SolidColorBrush x:Key="RowSelBorderBrush" Color="#B0B0B5"/>
+    <SolidColorBrush x:Key="PressedBgBrush" Color="#DCDCDF"/>
+    <SolidColorBrush x:Key="TabSelectedBgBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TabHoverBgBrush" Color="#E9E9EC"/>
+    <SolidColorBrush x:Key="DgHeaderBgBrush" Color="#FAFAFC"/>
+    <SolidColorBrush x:Key="DgAltRowBrush" Color="#F7F7F9"/>
+    <SolidColorBrush x:Key="GridLineBrush" Color="#ECECEE"/>
+    <SolidColorBrush x:Key="SaveHintBrush" Color="#34C759"/>
+    <SolidColorBrush x:Key="CaptionHoverBrush" Color="#E4E4E6"/>
+    <!-- 盯盘浮窗边框：浅色背景下用半透明黑描边 -->
+    <SolidColorBrush x:Key="MonitorBorderBrush" Color="#33000000"/>
+    <!-- 细滚动条滑块 -->
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#3D000000"/>
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#6E000000"/>
+    <!-- 滑块（Slider） -->
+    <SolidColorBrush x:Key="SliderTrackBrush" Color="#D9D9DE"/>
+    <SolidColorBrush x:Key="SliderFillBrush" Color="#007AFF"/>
+    <!-- 列表项柔和高亮（Apple 风：系统蓝 10% 叠加，而非灰色块） -->
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#1A007AFF"/>
+    <!-- 勾选框（CheckBox） -->
+    <SolidColorBrush x:Key="CheckBoxBorderBrush" Color="#C7C7CC"/>
+    <SolidColorBrush x:Key="CheckBoxFillBrush" Color="#007AFF"/>
+    <SolidColorBrush x:Key="CheckBoxGlyphBrush" Color="#FFFFFF"/>
+    <!-- 右键菜单（Apple 风：近白的半透明材质背景 + 实心强调色高亮） -->
+    <SolidColorBrush x:Key="MenuBgBrush" Color="#EBFFFFFF"/>
+    <SolidColorBrush x:Key="MenuHighlightBrush" Color="#007AFF"/>
+    <SolidColorBrush x:Key="MenuHighlightTextBrush" Color="#FFFFFF"/>
+</ResourceDictionary>

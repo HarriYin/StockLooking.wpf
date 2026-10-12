@@ -1,0 +1,60 @@
+<UserControl x:Class="StockLooking.wpf.Views.StockSearchBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:services="clr-namespace:StockLooking.wpf.Services"
+             FontFamily="Microsoft YaHei, SimSun, sans-serif">
+    <Grid>
+        <TextBox x:Name="InputBox" TextChanged="InputBox_TextChanged" KeyDown="InputBox_KeyDown"
+                 ToolTip="输入代码或中文名（任意位置模糊匹配，如「银行」可列出各银行），如 600519 / 华正新材"/>
+        <Popup x:Name="CandidatePopup" PlacementTarget="{Binding ElementName=InputBox}" Placement="Bottom"
+               HorizontalOffset="-12"
+               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+            <!-- Margin 给阴影留出模糊空间，避免四角被裁成直角；HorizontalOffset 补偿保持左对齐（与全局 ComboBox 下拉同法） -->
+            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="3" Margin="12,6,12,16">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.18" Color="Black"/>
+                </Border.Effect>
+                <ListBox x:Name="CandidateList" MaxHeight="240" BorderThickness="0" Background="Transparent"
+                         SelectionChanged="CandidateList_SelectionChanged"
+                         MouseLeftButtonUp="CandidateList_MouseUp">
+                    <!-- 自绘容器：替换系统默认的「蓝色直角高亮 + 边框」→ 圆角灰底、无边框 -->
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="6,4"/>
+                            <Setter Property="Margin" Value="0,1"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Ib" CornerRadius="6" Background="Transparent"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Ib" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Ib" Property="Background" Value="{DynamicResource PressedBgBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type services:StockSearchItem}">
+                            <StackPanel Orientation="Horizontal" Margin="2">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding Code}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

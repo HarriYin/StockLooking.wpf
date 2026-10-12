@@ -1,0 +1,32 @@
+<Window x:Class="StockLooking.wpf.Views.AppDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="提示" Width="400" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="False"
+        FontFamily="Microsoft YaHei, SimSun, sans-serif" FontSize="13">
+    <!-- 按钮样式由 App.xaml 的全局 Button 样式提供（隐式样式不跨窗口，故已提升为全局） -->
+
+    <!-- 圆角外框 + 柔和阴影；整块可拖动（无边框窗口） -->
+    <Border CornerRadius="14" Background="{DynamicResource AppBgBrush}" Margin="18"
+            MouseLeftButtonDown="Root_MouseDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.34" Color="Black"/>
+        </Border.Effect>
+        <StackPanel Margin="20,18,20,18">
+            <StackPanel Orientation="Horizontal">
+                <Border x:Name="IconBd" Width="26" Height="26" CornerRadius="13" VerticalAlignment="Top">
+                    <TextBlock x:Name="IconText" FontSize="14" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock x:Name="TitleText" Margin="10,0,0,0" FontSize="14" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}"/>
+            </StackPanel>
+
+            <TextBlock x:Name="MessageText" Margin="36,10,0,0" TextWrapping="Wrap" LineHeight="20"
+                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+            <StackPanel x:Name="ButtonPanel" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0"/>
+        </StackPanel>
+    </Border>
+</Window>

@@ -1,0 +1,270 @@
+<UserControl x:Class="StockLooking.wpf.Views.GlobalMarketView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:StockLooking.wpf.Models"
+             xmlns:views="clr-namespace:StockLooking.wpf.Views"
+             FontFamily="Microsoft YaHei, SimSun, sans-serif" FontSize="13"
+             Foreground="{DynamicResource TextPrimaryBrush}">
+    <UserControl.Resources>
+        <!-- 与 MarketOverview 同源的按钮样式（自成一份，避免依赖宿主资源） -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource PressedBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BorderLightBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="2,0,0,8"/>
+        </Style>
+
+        <!-- Apple 风右键菜单的三个样式（AppleMenuItem / AppleContextMenu / AppleSeparator）
+             原先是这里的私有资源，因托盘菜单也要用，已提升到 App.xaml 全局；
+             FindResource 会沿"元素树 → 应用资源"查找，这里无需再定义，删掉以免两份定义将来不同步。 -->
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 工具栏 -->
+        <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,2,0,8">
+            <Button x:Name="RefreshBtn" Content="刷新" Width="70" Margin="0,0,14,0" Click="Refresh_Click"
+                    ToolTip="立即重新获取全球大盘与外围个股行情"/>
+            <CheckBox x:Name="AutoChk" Content="自动刷新" Margin="0,0,14,0" VerticalAlignment="Center"
+                      Checked="AutoChk_Changed" Unchecked="AutoChk_Changed"
+                      ToolTip="仅在本页停留时生效；离开本页自动停止，避免占用资源"/>
+            <TextBlock Text="频率(ms)：" VerticalAlignment="Center"/>
+            <Slider x:Name="RefreshSlider" Minimum="1000" Maximum="30000" TickFrequency="1000" IsSnapToTickEnabled="True"
+                    Width="160" Margin="0,0,8,0" VerticalAlignment="Center" ValueChanged="RefreshSlider_ValueChanged"
+                    ToolTip="本页（全球大盘 / 特别关注 / 个股）的刷新节奏（每次移动步进 1000ms）"/>
+            <TextBlock x:Name="RefreshText" VerticalAlignment="Center" Width="64" Margin="0,0,14,0"/>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12"
+                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+        </WrapPanel>
+
+        <!-- 第一部分：全球大盘 分时卡片 -->
+        <StackPanel Grid.Row="1" Margin="2">
+            <TextBlock Text="全球大盘" Style="{StaticResource SectionTitle}"/>
+            <UniformGrid x:Name="IndexCardsPanel" Columns="3" Margin="0,0,0,4"/>
+        </StackPanel>
+
+        <!-- 第二部分：特别关注（用户可右键增删的卡片；原「环球产业」） -->
+        <StackPanel Grid.Row="2" Margin="2,10,2,2">
+            <TextBlock Text="特别关注" Style="{StaticResource SectionTitle}"/>
+            <UniformGrid x:Name="FavoriteCardsPanel" Columns="4" Margin="0,0,0,4"/>
+        </StackPanel>
+
+        <!-- 第三部分：外围个股检查卡片 -->
+        <Grid Grid.Row="3" Margin="2,10,2,2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 名称从「个股」改为「关注列表」：这里现在可以放**任意检索到的标的**（个股 / 指数 / 商品），
+                 不再限个股；与上方「特别关注」（从中挑出的重点）形成层级 -->
+            <TextBlock Grid.Row="0" Text="关注列表" Style="{StaticResource SectionTitle}"/>
+
+            <!-- 输入区：代码（左侧 Label + 下拉搜索提示） + 添加（市场由输入自动识别） -->
+            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="输入代码或名称搜索" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <!-- 宽度足够容纳回填后的**完整信息**（如"纽约原油 CFD · 美国"），不能让用户看不到自己选了什么 -->
+                <Grid Width="340" Margin="0,0,14,0" VerticalAlignment="Center">
+                    <TextBox x:Name="CodeBox" TextChanged="CodeBox_TextChanged"
+                             ToolTip="股票代码或名称：美股如 AAPL / 微软，港股如 00700 / 腾讯（市场自动识别）"/>
+                    <Popup x:Name="CodePopup" Placement="Bottom" PlacementTarget="{Binding ElementName=CodeBox}"
+                           StaysOpen="False" MinWidth="280" MaxHeight="260"
+                           AllowsTransparency="True" VerticalOffset="4" HorizontalOffset="-1">
+                        <!-- 浮层风格与卡片/按钮保持一致：**扁平**（大圆角 + 极淡描边），
+                             不加投影 —— 项目里卡片、按钮都是无阴影的扁平风，单独给下拉加重投影会显得突兀。 -->
+                        <Border Background="{DynamicResource CardBgBrush}" CornerRadius="10"
+                                BorderBrush="{DynamicResource BorderLightBrush}" BorderThickness="1"
+                                Padding="5">
+                                <StackPanel>
+                                    <ListBox x:Name="CodeSuggestionList" Background="Transparent" BorderThickness="0"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                             MouseLeftButtonUp="CodeSuggestionList_MouseLeftButtonUp">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="10,6"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="bd" Background="Transparent" CornerRadius="6"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <!-- Apple 风：淡蓝叠加高亮，而非灰色块；文字不变色 -->
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Display}" FontSize="12.5"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="{Binding Sub}" FontSize="10.5" Margin="0,2,0,0"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                    <!-- 无匹配结果提示（避免用户以为"没反应 / 信息不完整"） -->
+                                    <TextBlock x:Name="CodeNoResult" Visibility="Collapsed"
+                                               Text="无匹配结果：可直接输入代码后点「添加」"
+                                               FontSize="11.5" Margin="10,8,10,10" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
+
+                <Button x:Name="AddBtn" Content="添加" Width="80" Click="Add_Click"
+                        ToolTip="把该股票加入列表"/>
+                <TextBlock x:Name="AddHint" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11"
+                           Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap"/>
+            </WrapPanel>
+
+            <!-- 个股卡片：独立卡片 + WrapPanel 水平填充、满行换行（无外层大容器） -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="StockItems"
+                              PreviewMouseLeftButtonDown="StockItems_PreviewMouseLeftButtonDown"
+                              MouseMove="StockItems_MouseMove"
+                              MouseLeftButtonUp="StockItems_MouseLeftButtonUp">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <!-- 固定**一行 5 个**：UniformGrid 把可用宽度等分成 5 列，列数不随窗口宽度变化
+                                 （WrapPanel 会随宽度变成 4 个或 6 个）。等分后卡片宽度由列宽决定，
+                                 故卡片上不再绑定 CardWidth；名称过长靠换行 + 截断处理。 -->
+                            <UniformGrid Columns="5"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type views:ForeignStockRow}">
+                            <!-- 卡片：**高度固定**、宽度由「一行 5 列」等分（不再随名称变化）；双击打开完整 K 线；
+                                 删除/特别关注走右键菜单（Apple 风）。
+                                 ⚠️ 高度 100：名称最多两行 + 国别标签 + 代码小字共 3 行，92 会把代码那行裁掉。 -->
+                            <Border Style="{StaticResource CardBorder}" Height="100"
+                                    Margin="0,0,10,10" Tag="StockCard"
+                                    MouseLeftButtonDown="StockCard_MouseLeftButtonDown">
+                                <Border.ContextMenu>
+                                    <ContextMenu Style="{StaticResource AppleContextMenu}">
+                                        <MenuItem Header="特别关注" Style="{StaticResource AppleMenuItem}" Click="Favorite_Click"/>
+                                        <MenuItem Header="删除" Style="{StaticResource AppleMenuItem}" Click="Delete_Click"/>
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- ① 拖拽柄（多点样式） -->
+                                    <TextBlock Grid.Column="0" Text="⠿" Tag="DragHandle" FontSize="15"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" Cursor="SizeAll"
+                                               ToolTip="按住拖拽排序"/>
+
+                                    <!-- ② 左侧列：名称在弹性行内**垂直居中**，国别标签 + 代码小字**固定在底部**。
+                                         ⚠️ 必须用 Grid 两行（名称 * / 底部块 Auto）而不是单个 StackPanel ——
+                                            用 StackPanel 时标签和代码会紧跟着名称一起走，做不到"名称居中、标签固定贴底"。
+                                         代码小字：**无背景、无圆角，纯文字**（如 AAPL / 00700）。 -->
+                                    <Grid Grid.Column="1" Margin="0,1,0,1">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- 名称在**弹性行内垂直居中**（既不贴顶、也不与底部标签挤在一起） -->
+                                        <TextBlock Grid.Row="0" Text="{Binding Name}" FontWeight="Bold" FontSize="15"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center"
+                                                   LineHeight="19" LineStackingStrategy="BlockLineHeight"
+                                                   MaxHeight="38" Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+                                        <StackPanel Grid.Row="1" VerticalAlignment="Bottom">
+                                            <Border CornerRadius="4" Background="{Binding CountryBrush}" Padding="7,2"
+                                                    HorizontalAlignment="Left" MinWidth="26">
+                                                <TextBlock Text="{Binding CountryCode}" FontSize="10" Foreground="White"
+                                                           TextAlignment="Center" HorizontalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding SubCode}" FontSize="10" Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- ③ 当前股价 / 涨跌额 / 涨跌百分比（删除按钮已移至右键菜单） -->
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding Price, StringFormat={}{0:F2}}" FontSize="15" FontWeight="Bold"
+                                                   HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="{Binding ChangeAmountText}" HorizontalAlignment="Right"
+                                                   FontSize="11.5" FontWeight="Bold" Margin="0,4,0,0"
+                                                   Foreground="{Binding ChangeBrush}"/>
+                                        <TextBlock Text="{Binding ChangePctText}" HorizontalAlignment="Right"
+                                                   FontSize="11.5" FontWeight="Bold" Margin="0,2,0,0"
+                                                   Foreground="{Binding ChangeBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

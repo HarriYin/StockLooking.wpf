@@ -1,0 +1,33 @@
+<Window x:Class="StockLooking.wpf.Views.MonitorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:StockLooking.wpf.Views"
+        Title="盯盘" Height="260" Width="440"
+        Icon="pack://application:,,,/Resources/stock-up.ico"
+        WindowStyle="None" AllowsTransparency="True"
+        Topmost="True" ShowInTaskbar="False"
+        Background="Transparent"
+        ResizeMode="CanResize"
+        FontFamily="Microsoft YaHei, SimSun, sans-serif"
+        PreviewMouseLeftButtonDown="Window_PreviewMouseLeftButtonDown"
+        MouseMove="Window_MouseMove"
+        MouseLeftButtonUp="Window_MouseLeftButtonUp"
+        MouseDoubleClick="Window_MouseDoubleClick"
+        MouseEnter="Window_MouseEnter" MouseLeave="Window_MouseLeave">
+    <!-- 无边框、无滚动条；数据超出显示范围时由代码自动调整窗口尺寸 -->
+    <Grid>
+        <Border x:Name="RootBorder" CornerRadius="8" Padding="10" BorderThickness="0">
+            <StackPanel x:Name="StockPanel" Orientation="Vertical"/>
+        </Border>
+        <!--
+            极简模式专用的「全窗口透明遮罩」：
+            极简模式下窗口极小、窗口底色与卡片背景都完全透明，卡片之间的间隙（StockPanel 自身无背景）
+            是**命中不到**的 —— 点击落在这些区域时 WPF 找不到命中目标，鼠标事件根本不会路由，
+            于是表现为"按住左键拖不动窗口"。这层遮罩（Transparent，可命中）保证任意位置都有命中目标。
+            常规模式必须收起，否则会挡住卡片的拖拽排序手柄。
+            底色由代码控制：鼠标移入窗口 → 10% 暗灰（便于看清内容与提示可拖动）；移出 → 完全透明。
+        -->
+        <Border x:Name="DragLayer" Background="Transparent" Visibility="Collapsed"
+                CornerRadius="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="True"/>
+    </Grid>
+</Window>

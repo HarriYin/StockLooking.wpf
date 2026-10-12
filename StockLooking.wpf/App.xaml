@@ -1,0 +1,580 @@
+﻿<Application x:Class="StockLooking.wpf.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:StockLooking.wpf"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <!--
+            Apple 风细滚动条（全局生效：ScrollViewer / ListBox / DataGrid / ComboBox 下拉等）。
+            - 滑块细（8px），圆角胶囊，无上下箭头按钮
+            - Margin 让滚动条与相邻控件留出间距，避免贴着内容
+        -->
+        <ControlTemplate x:Key="ThinVScrollBarTemplate" TargetType="ScrollBar">
+            <Grid Background="Transparent">
+                <Track x:Name="PART_Track" IsDirectionReversed="True" Orientation="Vertical">
+                    <Track.DecreaseRepeatButton>
+                        <RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False" Opacity="0">
+                            <RepeatButton.Template>
+                                <ControlTemplate TargetType="RepeatButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </RepeatButton.Template>
+                        </RepeatButton>
+                    </Track.DecreaseRepeatButton>
+                    <Track.Thumb>
+                        <Thumb MinHeight="20">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <!-- 默认 2px；鼠标悬停时带动画放大到 8px（视觉粗细由 Thumb 固定，不受 ScrollBar 宽度影响） -->
+                                    <!-- 圆角固定 4：宽度 2px 时自动收窄为半圆，hover 放大到 8px 时即为标准胶囊 -->
+                                    <Border x:Name="tb" Background="{DynamicResource ScrollThumbBrush}" CornerRadius="4"
+                                            Width="2" HorizontalAlignment="Center"/>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="tb" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}"/>
+                                            <Trigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="tb" Storyboard.TargetProperty="Width"
+                                                                         To="8" Duration="0:0:0.16">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseOut"/>
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </Trigger.EnterActions>
+                                            <Trigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="tb" Storyboard.TargetProperty="Width"
+                                                                         To="2" Duration="0:0:0.24">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseIn"/>
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </Trigger.ExitActions>
+                                        </Trigger>
+                                        <Trigger Property="IsDragging" Value="True">
+                                            <Setter TargetName="tb" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Track.Thumb>
+                    <Track.IncreaseRepeatButton>
+                        <RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False" Opacity="0">
+                            <RepeatButton.Template>
+                                <ControlTemplate TargetType="RepeatButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </RepeatButton.Template>
+                        </RepeatButton>
+                    </Track.IncreaseRepeatButton>
+                </Track>
+            </Grid>
+        </ControlTemplate>
+
+        <ControlTemplate x:Key="ThinHScrollBarTemplate" TargetType="ScrollBar">
+            <Grid Background="Transparent">
+                <Track x:Name="PART_Track" IsDirectionReversed="False" Orientation="Horizontal">
+                    <Track.DecreaseRepeatButton>
+                        <RepeatButton Command="ScrollBar.PageLeftCommand" Focusable="False" Opacity="0">
+                            <RepeatButton.Template>
+                                <ControlTemplate TargetType="RepeatButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </RepeatButton.Template>
+                        </RepeatButton>
+                    </Track.DecreaseRepeatButton>
+                    <Track.Thumb>
+                        <Thumb MinWidth="20">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <!-- 默认 2px；鼠标悬停时带动画放大到 8px -->
+                                    <!-- 圆角固定 4：高度 2px 时自动收窄为半圆，hover 放大到 8px 时即为标准胶囊 -->
+                                    <Border x:Name="tb" Background="{DynamicResource ScrollThumbBrush}" CornerRadius="4"
+                                            Height="2" VerticalAlignment="Center"/>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="tb" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}"/>
+                                            <Trigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="tb" Storyboard.TargetProperty="Height"
+                                                                         To="8" Duration="0:0:0.16">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseOut"/>
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </Trigger.EnterActions>
+                                            <Trigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="tb" Storyboard.TargetProperty="Height"
+                                                                         To="2" Duration="0:0:0.24">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseIn"/>
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </Trigger.ExitActions>
+                                        </Trigger>
+                                        <Trigger Property="IsDragging" Value="True">
+                                            <Setter TargetName="tb" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Track.Thumb>
+                    <Track.IncreaseRepeatButton>
+                        <RepeatButton Command="ScrollBar.PageRightCommand" Focusable="False" Opacity="0">
+                            <RepeatButton.Template>
+                                <ControlTemplate TargetType="RepeatButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </RepeatButton.Template>
+                        </RepeatButton>
+                    </Track.IncreaseRepeatButton>
+                </Track>
+            </Grid>
+        </ControlTemplate>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <!-- Width/Height 只决定命中区域（便于拖拽），视觉粗细由 Thumb 固定为 2px -->
+            <Setter Property="Width" Value="10"/>
+            <!-- 左侧 4px 间距：垂直滚动条不贴内容 -->
+            <Setter Property="Margin" Value="4,2,2,2"/>
+            <Setter Property="Template" Value="{StaticResource ThinVScrollBarTemplate}"/>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="Height" Value="10"/>
+                    <!-- 上方 4px 间距 -->
+                    <Setter Property="Margin" Value="2,4,2,2"/>
+                    <Setter Property="Template" Value="{StaticResource ThinHScrollBarTemplate}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!--
+            Apple 风按钮（全局）。此前 Button 样式只定义在 MainWindow / KlineChart 的 Window.Resources 里，
+            而**隐式样式不跨窗口生效** —— 新建的对话框（GroupNameDialog 等）拿不到样式，
+            按钮会退回系统经典外观（方角、浅灰），与整体风格割裂。这里提升为全局。
+            两个既有窗口保留各自的同名样式（会覆盖本样式，行为不变），后续可逐步清理。
+        -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="MinWidth" Value="76"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" CornerRadius="9" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource PressedBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            Apple 风滑块：细轨道 + 圆形白色滑块（明暗主题自适应）
+        -->
+        <ControlTemplate x:Key="AppleSliderTemplate" TargetType="Slider">
+            <Grid VerticalAlignment="Center">
+                <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                        Background="{DynamicResource SliderTrackBrush}"/>
+                <Track x:Name="PART_Track">
+                    <Track.DecreaseRepeatButton>
+                        <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                            <RepeatButton.Template>
+                                <ControlTemplate TargetType="RepeatButton">
+                                    <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                                            Background="{DynamicResource SliderFillBrush}"/>
+                                </ControlTemplate>
+                            </RepeatButton.Template>
+                        </RepeatButton>
+                    </Track.DecreaseRepeatButton>
+                    <Track.IncreaseRepeatButton>
+                        <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                            <RepeatButton.Template>
+                                <ControlTemplate TargetType="RepeatButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </RepeatButton.Template>
+                        </RepeatButton>
+                    </Track.IncreaseRepeatButton>
+                    <Track.Thumb>
+                        <Thumb Width="16" Height="16" Cursor="Hand">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Ellipse Fill="White" Stroke="#24000000" StrokeThickness="1">
+                                        <Ellipse.Effect>
+                                            <DropShadowEffect BlurRadius="4" ShadowDepth="0" Opacity="0.32" Color="Black"/>
+                                        </Ellipse.Effect>
+                                    </Ellipse>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Track.Thumb>
+                </Track>
+            </Grid>
+        </ControlTemplate>
+
+        <Style TargetType="Slider">
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template" Value="{StaticResource AppleSliderTemplate}"/>
+        </Style>
+
+        <!--
+            Apple 风勾选框：16px 圆角方框 + 白色对勾（明暗主题自适应）
+        -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="box" Width="16" Height="16" CornerRadius="4"
+                                    BorderThickness="1.5" Background="Transparent" VerticalAlignment="Center"
+                                    BorderBrush="{DynamicResource CheckBoxBorderBrush}">
+                                <Path x:Name="glyph" Data="M1,4.5 L4.5,8 L10,1.5" Visibility="Collapsed"
+                                      Stroke="{DynamicResource CheckBoxGlyphBrush}" StrokeThickness="1.8"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="box" Property="Background" Value="{DynamicResource CheckBoxFillBrush}"/>
+                                <Setter TargetName="box" Property="BorderBrush" Value="{DynamicResource CheckBoxFillBrush}"/>
+                                <Setter TargetName="glyph" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="box" Property="BorderBrush" Value="{DynamicResource CheckBoxFillBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            Apple 风输入框：圆角边框 + 内边距 + 聚焦高亮（明暗主题自适应）
+            此前项目没有 TextBox 样式，「添加股票」「分组搜索」等输入框一直是系统默认的直角外观，
+            与全局 Apple 风（圆角 9）不一致。圆角取 9，与 ComboBox 保持同族。
+        -->
+        <Style TargetType="TextBox">
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource SliderFillBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="bd" CornerRadius="9"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <!-- PART_ContentHost 是 TextBox 模板的必需命名部件，缺失将无法输入与显示文本 -->
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource RowSelBorderBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource SliderFillBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            Apple 风下拉框：圆角边框 + 圆角下拉项（明暗主题自适应）
+            选中框内容的对齐由 HorizontalContentAlignment 控制（模板用 TemplateBinding 跟随）：
+            全局默认 **居中**（短下拉如「板块筛选」「主题」视觉更平衡）；
+            内容较长的下拉（如明细页的股票选择）在控件上单独设 HorizontalContentAlignment="Left"。
+        -->
+        <Style x:Key="AppleComboBoxItem" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <!-- Popup 是独立视觉树，不继承 ComboBox 的 Foreground；必须显式指定，否则暗色主题下是黑字 -->
+                        <Border x:Name="ib" CornerRadius="6" Padding="{TemplateBinding Padding}" Background="Transparent"
+                                TextElement.Foreground="{DynamicResource TextPrimaryBrush}">
+                            <!-- 必须 TemplateBinding 到 ContentTemplate，否则在 ItemContainerStyle 里设 ContentTemplate 不生效
+                                 （默认 ListBoxItem/ComboBoxItem 模板均如此）；不设时保持 null，行为与原先一致 -->
+                            <ContentPresenter VerticalAlignment="Center"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ib" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ib" Property="Background" Value="{DynamicResource TabSelectedBgBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="AppleComboBoxTemplate" TargetType="ComboBox">
+            <Grid>
+                <ToggleButton x:Name="ToggleButton" Focusable="False" ClickMode="Press"
+                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <!-- 显式绑定前景色：选中项文字必须跟随 ComboBox 的 Foreground（深色主题下为浅色字） -->
+                            <Border x:Name="bd" CornerRadius="9"
+                                    Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                    BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                    BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                    TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ComboBox}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0" Margin="12,0,4,0"
+                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"
+                                                      Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                      ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                      ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                                    <Path Grid.Column="1" Margin="4,0,10,0" VerticalAlignment="Center"
+                                          Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource TextSecondaryBrush}"
+                                          StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBgBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.5"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                </ToggleButton>
+
+                <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False" Placement="Bottom"
+                       HorizontalOffset="-12"
+                       IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Fade">
+                    <!--
+                        下拉面板同样显式指定前景色，保证暗色主题下字体为浅色。
+                        阴影四周必须**留出 ≥ BlurRadius 的 Margin**，否则模糊阴影被 Popup 边界直接裁切，
+                        圆角面板后面会出现一圈生硬的直角阴影边（Apple 风要求阴影柔和衰减到透明）。
+                        左侧 12px 由 HorizontalOffset=-12 补偿 → 面板仍与触发框左对齐。
+                    -->
+                    <Border CornerRadius="9" Margin="12,6,12,16" Padding="3"
+                            MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                            MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                            Background="{DynamicResource CardBgBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            TextElement.Foreground="{DynamicResource TextPrimaryBrush}">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.18" Color="Black"/>
+                        </Border.Effect>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </Border>
+                </Popup>
+            </Grid>
+        </ControlTemplate>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <!-- 选中框内容对齐：全局居中；内容长的下拉在控件上单独覆盖为 Left -->
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource AppleComboBoxItem}"/>
+            <Setter Property="Template" Value="{StaticResource AppleComboBoxTemplate}"/>
+        </Style>
+
+        <!-- 明细页使用的稍高版本（基于上面的默认样式） -->
+        <Style x:Key="AppleCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Height" Value="32"/>
+        </Style>
+
+        <!-- 提示气泡：跟随明暗主题（避免深色下白底突兀） -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource CardBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border CornerRadius="8" Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2" Color="Black"/>
+                            </Border.Effect>
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            ===== Apple 风右键菜单（全局）=====
+            原先这三个样式是「全球大盘」卡片的私有资源（定义在 GlobalMarketView.Resources），
+            而**控件级资源不向上共享** —— 托盘菜单由 App 层构建、不在任何窗口的可视树里，取不到这些样式，
+            只能继续用 WinForms 原生菜单，风格割裂。这里提升为全局，托盘菜单与各页右键菜单共用一套。
+
+            实现要点（踩过的坑）：
+            · ContextMenu 的 HasDropShadow=True **不能省**：正因为有了它，WPF 才会把菜单 Popup 建成透明分层窗口，
+              圆角外的区域才有 alpha 通道；设成 False 后四周会被渲染成不透明矩形，圆角直接失效。
+            · 有系统投影就**不要再叠 DropShadowEffect** —— 两者相加会出现"双层重阴影"。
+            · 高亮沿用 macOS 语义：**实心强调色填充 + 白字**（而非灰色块 / 半透明蓝），暗色主题下同样成立。
+            · 勾选标记列固定 20px：可勾选项显示 ✓，普通项留空，
+              保证所有菜单项的**文字左对齐在同一条竖线**上（不规则缩进是原生菜单最常见的观感问题）。
+            · MenuItem 用 IsCheckable 走 WPF 自带语义：点击先翻转 IsChecked 再触发 Click，
+              所以事件里直接读 IsChecked 即可，无需手动取反（这与原先 ToolStripMenuItem.CheckOnClick 行为一致）。
+        -->
+        <Style x:Key="AppleMenuItem" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Padding" Value="8,6,12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="6" Margin="3,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- 勾选标记：描边色绑定菜单项前景色，高亮成蓝底时自动变白 -->
+                                <Path x:Name="chk" Grid.Column="0" Visibility="Collapsed"
+                                      Data="M1,5 L4.5,8.5 L10,2" StrokeThickness="1.7"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                                  Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource MenuHighlightBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource MenuHighlightTextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="chk" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AppleContextMenu" TargetType="ContextMenu">
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="MinWidth" Value="172"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <!-- 外层透明 + Margin：给系统投影留出"画布"，内层圆角容器才是可见的菜单体 -->
+                        <Border Background="Transparent" Margin="8">
+                            <!-- 显式指定前景色：Popup 是独立可视树，不继承宿主的 Foreground，
+                                 暗色主题下不写这一句菜单项会是黑字 -->
+                            <Border CornerRadius="10" Padding="4"
+                                    Background="{DynamicResource MenuBgBrush}"
+                                    BorderBrush="{DynamicResource BorderLightBrush}" BorderThickness="1"
+                                    TextElement.Foreground="{DynamicResource TextPrimaryBrush}">
+                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                            </Border>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AppleSeparator" TargetType="Separator">
+            <Setter Property="Margin" Value="8,3"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Background="{DynamicResource BorderBrush}" VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>
